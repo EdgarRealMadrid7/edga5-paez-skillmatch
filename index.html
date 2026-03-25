@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>SkillMatch FINAL</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
+
+<style>
+body {
+  margin: 0;
+  font-family: 'Poppins';
+  background: linear-gradient(135deg, #ff4d6d, #6a5cff);
+  color: white;
+}
+
+/* APP */
+.app {
+  max-width: 400px;
+  margin: auto;
+  padding: 10px;
+}
+
+/* CARD */
+.card {
+  backdrop-filter: blur(15px);
+  background: rgba(255,255,255,0.1);
+  border-radius: 25px;
+  padding: 15px;
+  margin-top: 20px;
+  transition: 0.3s;
+  cursor: grab;
+}
+
+.card img {
+  width: 100%;
+  border-radius: 15px;
+}
+
+/* BOTONES */
+.buttons {
+  display: flex;
+  justify-content: space-around;
+}
+
+button {
+  padding: 12px;
+  border-radius: 50%;
+  border: none;
+  font-size: 20px;
+  transition: 0.3s;
+}
+
+button:hover {
+  transform: scale(1.1);
+}
+
+.like { background: #00ffb3; }
+.nope { background: #ff4d6d; }
+
+/* CHAT */
+#chatBox {
+  height: 120px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.3);
+  border-radius: 10px;
+  padding: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<h2>🔥 SkillMatch</h2>
+
+<!-- LOGIN -->
+<input id="email" placeholder="Correo">
+<input id="password" placeholder="Contraseña">
+<button onclick="login()">Entrar</button>
+
+<p id="status"></p>
+
+<!-- PUBLICAR IDEA -->
+<h3>💡 Publicar idea</h3>
+<input id="ideaTitle" placeholder="Título">
+<input id="ideaDesc" placeholder="Descripción">
+<button onclick="addIdea()">Guardar</button>
+
+<!-- TARJETA -->
+<div class="card" id="card">
+  <img id="img" src="">
+  <h3 id="title"></h3>
+  <p id="desc"></p>
+</div>
+
+<div class="buttons">
+  <button class="nope" onclick="swipe(false)">❌</button>
+  <button class="like" onclick="swipe(true)">❤️</button>
+</div>
+
+<!-- CHAT -->
+<h3>💬 Chat</h3>
+<div id="chatBox"></div>
+<input id="msg">
+<button onclick="sendMsg()">Enviar</button>
+
+</div>
+
+<script>
+
+// 🔑 PEGA TUS DATOS DE SUPABASE AQUÍ
+const supabase = supabase.createClient(
+  "TU_URL",
+  "TU_API_KEY"
+);
+
+// LOGIN
+async function login(){
+  let { error } = await supabase.auth.signInWithPassword({
+    email: email.value,
+    password: password.value
+  });
+
+  status.innerText = error ? error.message : "Bienvenido 🔥";
+  loadIdeas();
+  loadChat();
+}
+
+// GUARDAR IDEA
+async function addIdea(){
+  await supabase.from("ideas").insert([
+    { title: ideaTitle.value, description: ideaDesc.value }
+  ]);
+  alert("Idea guardada 🚀");
+}
+
+// CARGAR IDEAS
+let ideas = [];
+let index = 0;
+
+async function loadIdeas(){
+  let { data } = await supabase.from("ideas").select("*");
+  ideas = data;
+  show();
+}
+
+function show(){
+  if(ideas.length === 0) return;
+
+  let p = ideas[index];
+
+  title.innerText = p.title;
+  desc.innerText = p.description;
+  img.src = "https://picsum.photos/300/200?" + index;
+}
+
+// MATCH
+async function swipe(like){
+  if(like){
+    await supabase.from("matches").insert([
+      { idea: ideas[index].title }
+    ]);
+
+    notify("¡Nuevo match! 🔥");
+  }
+  next();
+}
+
+function next(){
+  index++;
+  if(index >= ideas.length) index = 0;
+  show();
+}
+
+// CHAT
+async function sendMsg(){
+  await supabase.from("chat").insert([
+    { message: msg.value }
+  ]);
+  msg.value = "";
+}
+
+// CHAT TIEMPO REAL
+function loadChat(){
+  supabase.channel("chat")
+    .on("postgres_changes", { event: "*", schema: "public", table: "chat" },
+      payload => {
+        chatBox.innerHTML += `<p>${payload.new.message}</p>`;
+      }
+    )
+    .subscribe();
+}
+
+// NOTIFICACIONES
+function notify(text){
+  if(Notification.permission === "granted"){
+    new Notification(text);
+  } else {
+    Notification.requestPermission();
+  }
+}
+
+// SWIPE CON ARRASTRE
+let card = document.getElementById("card");
+let startX = 0;
+
+card.addEventListener("mousedown", e => {
+  startX = e.clientX;
+  document.onmousemove = move;
+  document.onmouseup = stop;
+});
+
+function move(e){
+  let diff = e.clientX - startX;
+  card.style.transform = `translateX(${diff}px) rotate(${diff/10}deg)`;
+}
+
+function stop(e){
+  let diff = e.clientX - startX;
+
+  if(diff > 150) swipe(true);
+  else if(diff < -150) swipe(false);
+
+  card.style.transform = "";
+  document.onmousemove = null;
+}
+
+</script>
+
+</body>
+</html>
